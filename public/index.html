@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Storage Audit & Cleaner - Direct Execution</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-box">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+      </div>
+      <div class="brand-info">
+        <div class="brand-title-wrap">
+          <h1 class="brand-title">Storage Audit & Cleaner</h1>
+          <span class="badge-direct">Direct Execution</span>
+        </div>
+        <p class="brand-subtitle">Pembersihan Storage Riil di Harddisk Komputer</p>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button id="btnPindaiUlang" class="btn btn-header-secondary">
+        <svg id="pindaiIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+        Pindai Ulang
+      </button>
+
+      <button id="btnBersihkan" class="btn btn-header-danger">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 2l4 4-10 10H8v-4L18 2zM3 21h18"/>
+        </svg>
+        Bersihkan Duplikat & Sampah
+      </button>
+    </div>
+  </header>
+
+  <div class="main-layout">
+
+    <!-- Active Harddisk Target Bar -->
+    <section class="target-bar">
+      <div class="target-info">
+        <div class="folder-icon-wrap">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="#f59e0b">
+            <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="target-label">TARGET HARDDISK AKTIF:</div>
+          <div id="targetHarddiskPath" class="target-path">C:\Users\Student\Documents\storage-cleaner\Downloads_Lab</div>
+        </div>
+      </div>
+
+      <div class="target-actions">
+        <button id="btnBrowseDialog" class="btn btn-blue">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+          </svg>
+          Browse Folder (Dialog OS)
+        </button>
+
+        <label id="btnUploadFolder" class="btn btn-green">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 19V5M5 12l7-7 7 7"/>
+          </svg>
+          Pilih / Upload Folder
+          <input type="file" id="folderInputHidden" webkitdirectory directory multiple style="display: none;">
+        </label>
+
+        <button id="btnInputPath" class="btn btn-dark">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          Input Path
+        </button>
+      </div>
+    </section>
+
+    <!-- Empty State Welcome Box (shown when no folder selected or reset) -->
+    <section id="emptyStateHero" class="empty-state-box" style="display: none;">
+      <div class="hero-folder-icon">
+        <svg width="68" height="68" viewBox="0 0 24 24" fill="#f59e0b">
+          <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+        </svg>
+      </div>
+      <h2 class="hero-title">Silakan Pilih Folder untuk Memulai Audit</h2>
+      <p class="hero-desc">
+        Belum ada folder yang dipilih. Silakan pilih folder di harddisk komputer Anda yang ingin dipindai, dianalisis file raksasanya, dan dibersihkan duplikatnya secara riil tanpa membuat salinan.
+      </p>
+      <div class="hero-actions">
+        <button id="heroBtnBrowse" class="btn btn-blue btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+          </svg>
+          Browse Folder (Dialog Windows)
+        </button>
+        <label class="btn btn-green btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 19V5M5 12l7-7 7 7"/>
+          </svg>
+          Pilih / Upload Folder
+          <input type="file" id="heroFolderInput" webkitdirectory directory multiple style="display: none;">
+        </label>
+        <button id="heroBtnInput" class="btn btn-dark btn-lg">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          Ketik Path Manual
+        </button>
+      </div>
+    </section>
+
+    <!-- 4 Stats Cards Grid -->
+    <section class="stats-row">
+      <!-- Card 1 -->
+      <div class="stat-box card-total-files">
+        <div class="stat-header">
+          <span class="stat-title">TOTAL FILE DI-SCAN</span>
+          <div class="stat-corner-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#f59e0b">
+              <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+            </svg>
+          </div>
+        </div>
+        <div id="valTotalFiles" class="stat-number">64</div>
+        <div class="stat-sub">STG-01: Memindai seluruh file rekursif</div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="stat-box card-capacity">
+        <div class="stat-header">
+          <span class="stat-title">TOTAL KAPASITAS FOLDER</span>
+          <div class="stat-corner-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#c084fc">
+              <path d="M19 2H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-4-4zm-7 18a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-12H6V4h9v4z"/>
+            </svg>
+          </div>
+        </div>
+        <div id="valTotalCapacity" class="stat-number">61.41 MB</div>
+        <div class="stat-sub">Ukuran data fisik asli di disk</div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="stat-box card-giants">
+        <div class="stat-header">
+          <span class="stat-title">FILE RAKSASA (&ge; 2 MB)</span>
+          <div class="stat-corner-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#f59e0b">
+              <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+            </svg>
+          </div>
+        </div>
+        <div id="valGiantFiles" class="stat-number">15</div>
+        <div class="stat-sub">STG-03: Terdeteksi file boros kuota</div>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="stat-box card-savings">
+        <div class="stat-header">
+          <span class="stat-title">POTENSI HEMAT RUANG</span>
+          <div class="stat-corner-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#38bdf8">
+              <path d="M12 2L9.5 8.5 3 11l6.5 2.5L12 20l2.5-6.5L21 11l-6.5-2.5L12 2z"/>
+            </svg>
+          </div>
+        </div>
+        <div id="valSavings" class="stat-number">18 MB</div>
+        <div class="stat-sub">Duplikat identik & file sampah .tmp</div>
+      </div>
+    </section>
+
+    <!-- Table Card: Daftar File Raksasa (≥ 2 MB) -->
+    <section class="table-card">
+      <div class="table-card-header">
+        <div class="table-title-group">
+          <div class="cube-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#f97316">
+              <path d="M21 16.5l-9 5.25L3 16.5V7.5l9-5.25 9 5.25v9zM12 4.25L5.2 8.2 12 12.15l6.8-3.95L12 4.25z"/>
+            </svg>
+          </div>
+          <h3 class="table-card-title">Daftar File Raksasa (&ge; 2 MB)</h3>
+          <span id="giantCountBadge" class="pill-orange">15 file</span>
+        </div>
+
+        <div class="search-wrap">
+          <input type="text" id="giantSearchInput" placeholder="Cari file raksasa..." />
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th style="width: 32%;">NAMA FILE</th>
+              <th style="width: 42%;">PATH LOKASI HARDDISK</th>
+              <th style="width: 14%;">UKURAN</th>
+              <th style="width: 12%;">FORMAT</th>
+            </tr>
+          </thead>
+          <tbody id="giantTableRows">
+            <!-- Dynamic Rows -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Duplicate Groups Accordion / View (Seamlessly Integrated) -->
+    <section class="table-card" style="margin-top: 24px;">
+      <div class="table-card-header">
+        <div class="table-title-group">
+          <div class="cube-icon" style="background: rgba(239, 68, 68, 0.15);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#ef4444">
+              <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+            </svg>
+          </div>
+          <h3 class="table-card-title">Kelompok File Duplikat (Hash Identik)</h3>
+          <span id="dupCountBadge" class="pill-red">20 grup (21 duplikat)</span>
+        </div>
+
+        <div class="dup-header-note">
+          <span>1 file asli per grup akan selalu dipertahankan utuh aman</span>
+        </div>
+      </div>
+
+      <div id="duplicateCardsArea" class="duplicate-list-compact">
+        <!-- Rendered Duplicates -->
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Floating Toast Notifications (bottom-right) -->
+  <div class="floating-toasts" id="toastContainer">
+    <div class="toast-item toast-info" id="toastSearch">
+      <div class="toast-icon">ℹ️</div>
+      <div class="toast-text">Mencari lokasi fisik folder 'Downloads_Lab' di harddisk...</div>
+    </div>
+    <div class="toast-item toast-success" id="toastConnect">
+      <div class="toast-icon">✅</div>
+      <div class="toast-text" id="toastConnectText">Berhasil terhubung langsung ke harddisk: C:\Users\Student\Documents\storage-cleaner\Downloads_Lab</div>
+    </div>
+  </div>
+
+  <!-- Manual Input Path Modal -->
+  <div class="modal-backdrop" id="inputPathModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Input Path Folder Manual</h3>
+        <button class="modal-close" id="btnClosePathModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 12px;">Masukkan path folder lengkap di harddisk komputer yang ingin diaudit:</p>
+        <input type="text" id="manualPathInput" class="modal-input" placeholder="Contoh: C:\Users\Student\Downloads\Downloads_Lab" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-dark" id="btnCancelPathModal">Batal</button>
+        <button class="btn btn-blue" id="btnApplyPathModal">Pilih Folder Ini</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation Clean Modal -->
+  <div class="modal-backdrop" id="cleanConfirmModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="background: rgba(239, 68, 68, 0.2); padding: 8px; border-radius: 8px; color: #ef4444;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div>
+            <h3>Konfirmasi Pembersihan Harddisk</h3>
+            <p style="font-size: 0.78rem; color: #94a3b8;">Hanya menghapus file salinan duplikat dan .tmp sampah</p>
+          </div>
+        </div>
+        <button class="modal-close" id="btnCloseCleanModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-weight: 600; color: #fff; margin-bottom: 12px;">
+          Apakah Anda yakin ingin menghapus seluruh salinan duplikat yang tidak terpakai?
+        </p>
+        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 12px; font-size: 0.82rem; color: #6ee7b7; margin-bottom: 16px;">
+          🛡️ <strong>Prinsip Aman:</strong> 1 file asli per kelompok akan tetap dipertahankan utuh di lokasi aslinya.
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 12px;">
+          <span style="color: #94a3b8;">Total Salinan Dihapus: <strong id="cleanModalCount" style="color: #ef4444;">21 file</strong></span>
+          <span style="color: #94a3b8;">Ruang Dibebaskan: <strong id="cleanModalFreed" style="color: #10b981;">18 MB</strong></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-dark" id="btnCancelCleanModal">Batal</button>
+        <button class="btn btn-header-danger" id="btnExecuteClean">Ya, Bersihkan Sekarang (Yes)</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
