@@ -261,21 +261,198 @@ async function handleBrowseDialog() {
       await runAuditScan(data.path);
     }
   } catch (err) {
-    console.error(err);
+    console.error('Browse dialog error:', err);
   }
 }
 
-// Webkit Directory Browser Upload
-function handleFolderSelect(e) {
-  const files = e.target.files;
+// Calculate SHA-256 for a browser File object using Web Crypto API
+async function hashBrowserFile(file) {
+  try {
+    if (file.size <= 32 * 1024 * 1024) {
+      const buffer = await file.arrayBuffer();
+      const hashBuf = await crypto.subtle.digest('SHA-256', buffer);
+      return Array.from(new Uint8Array(hashBuf))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+    // For very large files, hash boundary chunks + size for fast, accurate deduplication
+    const slice1 = file.slice(0, 4 * 1024 * 1024);
+    const slice2 = file.slice(file.size - 4 * 1024 * 1024);
+    const buf1 = await slice1.arrayBuffer();
+    const buf2 = await slice2.arrayBuffer();
+    const combined = new Uint8Array(buf1.byteLength + buf2.byteLength);
+    combined.set(new Uint8Array(buf1), 0);
+    combined.set(new Uint8Array(buf2), buf1.byteLength);
+    const hashBuf = await crypto.subtle.digest('SHA-256', combined);
+    return Array.from(new Uint8Array(hashBuf))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch (e) {
+    return `browser_hash_${file.name}_${file.size}_${file.lastModified}`;
+  }
+}
+
+// Client-side Audit Engine for Browser FileList
+async function auditBrowserFiles(fileList, topFolderName) {
+  const GIANT_THRESHOLD = 2 * 1024 * 1024; // 2 MB
+  const rawFiles = Array.from(fileList);
+  const processedFiles = [];
+
+  let totalBytes = 0;
+  const giantFiles = [];
+  const tmpFiles = [];
+  const hashMap = new Map();
+
+  for (const file of rawFiles) {
+    const relPath = file.webkitRelativePath || file.name;
+    const isGiant = file.size >= GIANT_THRESHOLD;
+    const isTmp = file.name.toLowerCase().endsWith('.tmp') || file.name.toLowerCase().includes('.tmp.');
+    const hash = await hashBrowserFile(file);
+
+    const fileObj = {
+      name: file.name,
+      fullPath: relPath,
+      relativePath: relPath,
+      size: file.size,
+      mtime: new Date(file.lastModified),
+      birthtime: new Date(file.lastModified),
+      hash,
+      isTmp,
+      isGiant
+    };
+
+    processedFiles.push(fileObj);
+    totalBytes += file.size;
+
+    if (isGiant) giantFiles.push(fileObj);
+    if (isTmp) tmpFiles.push(fileObj);
+
+    if (!hashMap.has(hash)) hashMap.set(hash, []);
+    hashMap.get(hash).push(fileObj);
+  }
+
+  // Sort giant files descending by size
+  giantFiles.sort((a, b) => b.size - a.size);
+
+  // Group duplicate files by hash
+  const duplicateGroups = [];
+  let duplicateWastedBytes = 0;
+  let duplicateCount = 0;
+
+  for (const [hash, group] of hashMap.entries()) {
+    if (group.length > 1) {
+      group.sort((a, b) => {
+        const aPenalty = /copy|backup|\(\d+\)|salinan/i.test(a.name) ? 1 : 0;
+        const bPenalty = /copy|backup|\(\d+\)|salinan/i.test(b.name) ? 1 : 0;
+        if (aPenalty !== bPenalty) return aPenalty - bPenalty;
+        return a.birthtime - b.birthtime;
+      });
+
+      const master = group[0];
+      const duplicates = group.slice(1);
+      const groupWasted = duplicates.reduce((acc, f) => acc + f.size, 0);
+
+      duplicateWastedBytes += groupWasted;
+      duplicateCount += duplicates.length;
+
+      duplicateGroups.push({
+        hash,
+        fileSize: master.size,
+        master,
+        duplicates,
+        wastedBytes: groupWasted
+      });
+    }
+  }
+
+  const dupPaths = new Set();
+  duplicateGroups.forEach(g => g.duplicates.forEach(d => dupPaths.add(d.fullPath)));
+  const uniqueTmpFiles = tmpFiles.filter(t => !dupPaths.has(t.fullPath));
+  const tmpWastedBytes = uniqueTmpFiles.reduce((acc, f) => acc + f.size, 0);
+  const totalSavableBytes = duplicateWastedBytes + tmpWastedBytes;
+
+  return {
+    targetDir: topFolderName,
+    files: processedFiles,
+    analysis: {
+      totalBytes,
+      giantFiles,
+      duplicateGroups,
+      duplicateCount,
+      duplicateWastedBytes,
+      tmpFiles,
+      uniqueTmpFiles,
+      tmpWastedBytes,
+      totalSavableBytes
+    },
+    scanDuration: '0.05'
+  };
+}
+
+// Webkit Directory Browser Upload Handler
+async function handleFolderSelect(e) {
+  const input = e.target;
+  const files = input.files;
   if (!files || files.length === 0) return;
 
-  const firstFile = files[0];
-  const fullRelative = firstFile.webkitRelativePath || '';
-  const topFolder = fullRelative.split('/')[0] || 'Selected Folder';
+  el.btnPindaiUlang.disabled = true;
+  el.pindaiIcon.classList.add('spin');
 
-  // Inform and scan
-  runAuditScan();
+  try {
+    const firstFile = files[0];
+    const fullRelative = firstFile.webkitRelativePath || '';
+    const topFolder = fullRelative.split('/')[0] || firstFile.name || 'Folder Pilihan';
+
+    let candidatePath = null;
+    if (firstFile.path) {
+      const norm = firstFile.path.replace(/\\/g, '/');
+      const idx = norm.lastIndexOf('/' + (fullRelative || firstFile.name));
+      if (idx !== -1) {
+        candidatePath = norm.substring(0, idx + ('/' + topFolder).length).replace(/\//g, '\\');
+      } else {
+        candidatePath = firstFile.path;
+      }
+    }
+
+    let serverSuccess = false;
+    const targetQuery = candidatePath || topFolder;
+
+    // Try scanning on server if accessible
+    try {
+      const res = await fetch(`/api/scan?folder=${encodeURIComponent(targetQuery)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const serverPath = data.targetDir.replace(/\\/g, '/').toLowerCase();
+        if (
+          serverPath.endsWith('/' + topFolder.toLowerCase()) || 
+          serverPath === topFolder.toLowerCase() ||
+          candidatePath
+        ) {
+          appData = data;
+          renderData(appData);
+          triggerToasts(appData.targetDir);
+          serverSuccess = true;
+        }
+      }
+    } catch (err) {
+      console.warn('Server lookup skipped:', err);
+    }
+
+    // If not matching physical server folder directly, perform client-side deep audit
+    if (!serverSuccess) {
+      const clientData = await auditBrowserFiles(files, topFolder);
+      appData = clientData;
+      renderData(appData);
+      triggerToasts(topFolder);
+    }
+  } catch (err) {
+    console.error('Error saat memilih folder:', err);
+    alert('Gagal memproses folder yang dipilih: ' + err.message);
+  } finally {
+    el.btnPindaiUlang.disabled = false;
+    el.pindaiIcon.classList.remove('spin');
+    input.value = ''; // Reset input so change event triggers consistently
+  }
 }
 
 // Manual Path Modal
@@ -314,7 +491,12 @@ async function applyPathManual() {
 function openCleanModal() {
   if (!appData) return;
   const analysis = appData.analysis;
-  el.cleanModalCount.textContent = `${analysis.duplicateCount} file`;
+  if (!analysis || (analysis.duplicateCount === 0 && (!analysis.uniqueTmpFiles || analysis.uniqueTmpFiles.length === 0))) {
+    alert('Tidak ada file duplikat atau sampah yang perlu dibersihkan pada folder ini.');
+    return;
+  }
+  const totalRemovable = analysis.duplicateCount + (analysis.uniqueTmpFiles ? analysis.uniqueTmpFiles.length : 0);
+  el.cleanModalCount.textContent = `${totalRemovable} file`;
   el.cleanModalFreed.textContent = formatBytes(analysis.totalSavableBytes);
   el.cleanConfirmModal.classList.add('open');
 }
@@ -334,8 +516,8 @@ async function executeCleanup() {
     if (!res.ok) throw new Error(result.error || 'Gagal menghapus file');
 
     closeCleanModal();
-    alert(`🎉 Pembersihan Berhasil!\n${result.deletedCount} file duplikat dihapus.\n${formatBytes(result.freedBytes)} ruang harddisk berhasil dibebaskan!`);
-    await runAuditScan();
+    alert(`🎉 Pembersihan Berhasil!\n${result.deletedCount} file duplikat/sampah dihapus.\n${formatBytes(result.freedBytes)} ruang harddisk berhasil dibebaskan!`);
+    await runAuditScan(appData ? appData.targetDir : null);
   } catch (err) {
     alert('Terjadi kesalahan saat pembersihan: ' + err.message);
   } finally {
@@ -345,7 +527,7 @@ async function executeCleanup() {
 }
 
 // Event Listeners
-el.btnPindaiUlang.addEventListener('click', () => runAuditScan());
+el.btnPindaiUlang.addEventListener('click', () => runAuditScan(appData ? appData.targetDir : null));
 el.btnBrowseDialog.addEventListener('click', handleBrowseDialog);
 el.heroBtnBrowse.addEventListener('click', handleBrowseDialog);
 

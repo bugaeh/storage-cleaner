@@ -193,8 +193,25 @@ const server = http.createServer(async (req, res) => {
     // API: Scan
     if (pathname === '/api/scan') {
       const queryFolder = url.searchParams.get('folder');
-      if (queryFolder && fs.existsSync(queryFolder)) {
-        activeTargetDir = path.resolve(queryFolder);
+      if (queryFolder) {
+        const candidates = [
+          queryFolder,
+          path.resolve(queryFolder),
+          path.resolve(process.cwd(), queryFolder),
+          path.resolve(__dirname, queryFolder),
+          path.join(os.homedir(), 'Downloads', queryFolder),
+          path.join(os.homedir(), 'Documents', queryFolder),
+          path.join(os.homedir(), 'Desktop', queryFolder),
+          path.join(os.homedir(), queryFolder)
+        ];
+        for (const candidate of candidates) {
+          try {
+            if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+              activeTargetDir = path.resolve(candidate);
+              break;
+            }
+          } catch (e) {}
+        }
       }
 
       const targetDir = activeTargetDir;
@@ -237,14 +254,36 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       try {
         const payload = JSON.parse(body);
-        if (payload.folder && fs.existsSync(payload.folder)) {
-          activeTargetDir = path.resolve(payload.folder);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, path: activeTargetDir }));
-        } else {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'Folder tidak ditemukan di sistem harddisk.' }));
+        let target = payload.folder ? payload.folder.trim() : '';
+        if (target) {
+          const candidates = [
+            target,
+            path.resolve(target),
+            path.resolve(process.cwd(), target),
+            path.resolve(__dirname, target),
+            path.join(os.homedir(), 'Downloads', target),
+            path.join(os.homedir(), 'Documents', target),
+            path.join(os.homedir(), 'Desktop', target),
+            path.join(os.homedir(), target)
+          ];
+          let found = null;
+          for (const c of candidates) {
+            try {
+              if (fs.existsSync(c) && fs.statSync(c).isDirectory()) {
+                found = path.resolve(c);
+                break;
+              }
+            } catch (e) {}
+          }
+          if (found) {
+            activeTargetDir = found;
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, path: activeTargetDir }));
+            return;
+          }
         }
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Folder tidak ditemukan di sistem harddisk.' }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: 'JSON payload tidak valid.' }));
